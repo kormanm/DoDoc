@@ -44,6 +44,8 @@ var host = new HostBuilder()
             var model = config["Ai:Model"] ?? "gpt-4o-mini";
             services.AddSingleton<IAiProvider>(new OpenAiProvider(apiKey, model));
         }
+
+        services.AddSingleton<Documents.TextExtractor>();
     })
     .Build();
 
