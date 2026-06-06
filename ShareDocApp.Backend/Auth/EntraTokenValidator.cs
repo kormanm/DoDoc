@@ -34,7 +34,7 @@ public class EntraTokenValidator
 
     private readonly TokenValidationParameters? _overrideParams;
 
-    public async Task<Result<string>> ValidateAndGetUserIdAsync(string? authHeader, CancellationToken ct)
+    public virtual async Task<Result<string>> ValidateAndGetUserIdAsync(string? authHeader, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(authHeader))
             return Errors.Auth("Missing Authorization header");
