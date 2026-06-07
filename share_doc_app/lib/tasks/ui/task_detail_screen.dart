@@ -14,7 +14,10 @@ class TaskDetailScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<TaskRepository>(
       builder: (context, repo, _) {
-        final task = repo.tasks.where((t) => t.id == taskId).firstOrNull;
+        final task = repo.tasks
+            .where((t) => t.id == taskId)
+            .cast<Task?>()
+            .firstWhere((_) => true, orElse: () => null);
         if (task == null) {
           return Scaffold(
             appBar: AppBar(),
@@ -154,7 +157,7 @@ class TaskDetailScreen extends StatelessWidget {
               style: const TextStyle(fontWeight: FontWeight.bold)),
           Chip(
             label: Text(value),
-            backgroundColor: color.withValues(alpha: 0.2),
+            backgroundColor: color.withOpacity(0.2),
           ),
         ],
       ),

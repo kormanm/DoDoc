@@ -67,6 +67,9 @@ class TaskRepository extends ChangeNotifier {
           : await _api.create(task);
       if (result.isSuccess) {
         final synced = result.value!.copyWith(pendingSync: false);
+        if (synced.id != task.id) {
+          await _db.deleteTask(task.id!);
+        }
         await _db.upsertTask(synced);
       }
     }

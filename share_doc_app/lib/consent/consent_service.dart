@@ -12,6 +12,7 @@ class ConsentService extends ChangeNotifier {
   ConsentService(this._usersApi);
 
   Future<void> loadFromProfile() async {
+    await _usersApi.register();
     final result = await _usersApi.getMe();
     if (result.isSuccess) {
       _persistDocs = result.value!.persistDocs;
@@ -21,6 +22,7 @@ class ConsentService extends ChangeNotifier {
   }
 
   Future<void> updateConsent(bool persist) async {
+    await _usersApi.register();
     final result = await _usersApi.updateConsent(persist);
     if (result.isSuccess) {
       _persistDocs = persist;

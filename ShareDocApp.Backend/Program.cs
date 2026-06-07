@@ -21,7 +21,7 @@ var host = new HostBuilder()
             new EntraTokenValidator(
                 config["Entra:Issuer"] ?? throw new InvalidOperationException("Entra:Issuer not configured"),
                 config["Entra:Audience"] ?? throw new InvalidOperationException("Entra:Audience not configured"),
-                config["Entra:Jwks"] ?? throw new InvalidOperationException("Entra:Jwks not configured")));
+                config["Entra:MetadataAddress"] ?? throw new InvalidOperationException("Entra:MetadataAddress not configured")));
 
         var storageConn = config["StorageConnection"]
             ?? throw new InvalidOperationException("StorageConnection not configured");
@@ -43,6 +43,10 @@ var host = new HostBuilder()
                 ?? throw new InvalidOperationException("OpenAiApiKey not configured");
             var model = config["Ai:Model"] ?? "gpt-4o-mini";
             services.AddSingleton<IAiProvider>(new OpenAiProvider(apiKey, model));
+        }
+        else
+        {
+            throw new InvalidOperationException($"Unsupported AI provider: '{aiProvider}'. Only 'openai' is supported in v1.");
         }
 
         services.AddSingleton<Documents.TextExtractor>();

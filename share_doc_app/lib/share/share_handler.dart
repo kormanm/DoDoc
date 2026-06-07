@@ -69,8 +69,8 @@ class ShareHandler {
           .toList(),
       phones: doc.phones,
       address: doc.address,
-      geoLat: doc.geo?['lat'] as double?,
-      geoLon: doc.geo?['lon'] as double?,
+      geoLat: (doc.geo?['lat'] as num?)?.toDouble(),
+      geoLon: (doc.geo?['lon'] as num?)?.toDouble(),
       aiConfidence: doc.confidence,
       parseFailed: false,
     ));

@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:android_alarm_manager_plus/android_alarm_manager_plus.dart';
 import '../tasks/data/local_task_dao.dart';
 import 'notification_service.dart';
@@ -6,6 +7,8 @@ class DailyAlarm {
   static const _alarmId = 0;
 
   static Future<void> schedule() async {
+    if (!Platform.isAndroid) return;
+
     await AndroidAlarmManager.initialize();
     await AndroidAlarmManager.periodic(
       const Duration(hours: 24),

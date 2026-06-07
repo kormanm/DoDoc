@@ -11,15 +11,16 @@ public class EntraTokenValidator
 {
     private readonly string _issuer;
     private readonly string _audience;
-    private readonly ConfigurationManager<OpenIdConnectConfiguration> _configManager;
+    private readonly ConfigurationManager<OpenIdConnectConfiguration>? _configManager;
     private readonly JwtSecurityTokenHandler _handler = new();
+    private readonly TokenValidationParameters? _overrideParams;
 
-    public EntraTokenValidator(string issuer, string audience, string jwksUri)
+    public EntraTokenValidator(string issuer, string audience, string metadataAddress)
     {
         _issuer = issuer;
         _audience = audience;
         _configManager = new ConfigurationManager<OpenIdConnectConfiguration>(
-            jwksUri,
+            metadataAddress,
             new OpenIdConnectConfigurationRetriever(),
             new HttpDocumentRetriever());
     }
@@ -28,11 +29,8 @@ public class EntraTokenValidator
     {
         _issuer = issuer;
         _audience = audience;
-        _configManager = null!;
         _overrideParams = overrideParams;
     }
-
-    private readonly TokenValidationParameters? _overrideParams;
 
     public virtual async Task<Result<string>> ValidateAndGetUserIdAsync(string? authHeader, CancellationToken ct)
     {
@@ -70,7 +68,7 @@ public class EntraTokenValidator
 
     private async Task<TokenValidationParameters> BuildValidationParametersAsync(CancellationToken ct)
     {
-        var config = await _configManager.GetConfigurationAsync(ct);
+        var config = await _configManager!.GetConfigurationAsync(ct);
         return new TokenValidationParameters
         {
             ValidIssuer = _issuer,

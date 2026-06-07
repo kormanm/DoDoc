@@ -7,6 +7,7 @@ import '../core/result.dart';
 class ApiClient {
   final Dio _dio;
   final AuthService _authService;
+  bool _isRefreshing = false;
 
   ApiClient(this._authService)
       : _dio = Dio(BaseOptions(
@@ -23,13 +24,38 @@ class ApiClient {
     return {'Authorization': 'Bearer ${tokenResult.value}'};
   }
 
+  Future<Response<dynamic>> _requestWithRetry(
+    Future<Response<dynamic>> Function(Options options) request,
+  ) async {
+    final headers = await _authHeaders();
+    try {
+      return await request(Options(headers: headers));
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401 && !_isRefreshing) {
+        _isRefreshing = true;
+        try {
+          final refreshResult = await _authService.refreshToken();
+          if (refreshResult.isSuccess) {
+            final newHeaders = {
+              'Authorization': 'Bearer ${refreshResult.value}'
+            };
+            return await request(Options(headers: newHeaders));
+          }
+        } finally {
+          _isRefreshing = false;
+        }
+      }
+      rethrow;
+    }
+  }
+
   Future<Result<T>> get<T>(
     String path,
     T Function(dynamic json) fromJson,
   ) async {
     try {
-      final headers = await _authHeaders();
-      final response = await _dio.get(path, options: Options(headers: headers));
+      final response =
+          await _requestWithRetry((opts) => _dio.get(path, options: opts));
       return Result.ok(fromJson(response.data));
     } on DioException catch (e) {
       return Result.fail(_mapDioError(e));
@@ -46,9 +72,8 @@ class ApiClient {
     T Function(dynamic json) fromJson,
   ) async {
     try {
-      final headers = await _authHeaders();
-      final response = await _dio.post(path,
-          data: data, options: Options(headers: headers));
+      final response = await _requestWithRetry(
+          (opts) => _dio.post(path, data: data, options: opts));
       return Result.ok(fromJson(response.data));
     } on DioException catch (e) {
       return Result.fail(_mapDioError(e));
@@ -65,9 +90,8 @@ class ApiClient {
     T Function(dynamic json) fromJson,
   ) async {
     try {
-      final headers = await _authHeaders();
-      final response = await _dio.put(path,
-          data: data, options: Options(headers: headers));
+      final response = await _requestWithRetry(
+          (opts) => _dio.put(path, data: data, options: opts));
       return Result.ok(fromJson(response.data));
     } on DioException catch (e) {
       return Result.fail(_mapDioError(e));
@@ -80,8 +104,7 @@ class ApiClient {
 
   Future<Result<void>> delete(String path) async {
     try {
-      final headers = await _authHeaders();
-      await _dio.delete(path, options: Options(headers: headers));
+      await _requestWithRetry((opts) => _dio.delete(path, options: opts));
       return const Result.ok(null);
     } on DioException catch (e) {
       return Result.fail(_mapDioError(e));
@@ -98,9 +121,8 @@ class ApiClient {
     T Function(dynamic json) fromJson,
   ) async {
     try {
-      final headers = await _authHeaders();
-      final response = await _dio.post(path,
-          data: formData, options: Options(headers: headers));
+      final response = await _requestWithRetry(
+          (opts) => _dio.post(path, data: formData, options: opts));
       return Result.ok(fromJson(response.data));
     } on DioException catch (e) {
       return Result.fail(_mapDioError(e));

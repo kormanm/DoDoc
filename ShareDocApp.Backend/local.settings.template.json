@@ -8,6 +8,6 @@
     "Ai:Model": "gpt-4o-mini",
     "Entra:Issuer": "<your-entra-issuer-url>",
     "Entra:Audience": "<your-entra-client-id>",
-    "Entra:Jwks": "<your-entra-jwks-uri>"
+    "Entra:MetadataAddress": "<your-entra-openid-configuration-url>"
   }
 }

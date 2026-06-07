@@ -29,7 +29,8 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
           .read<TaskRepository>()
           .tasks
           .where((t) => t.id == widget.taskId)
-          .firstOrNull;
+          .cast<Task?>()
+          .firstWhere((_) => true, orElse: () => null);
       if (task != null) {
         _titleController = TextEditingController(text: task.title);
         _summaryController = TextEditingController(text: task.summary);
@@ -154,7 +155,10 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
     if (!_formKey.currentState!.validate()) return;
 
     final repo = context.read<TaskRepository>();
-    final task = repo.tasks.where((t) => t.id == widget.taskId).firstOrNull;
+    final task = repo.tasks
+        .where((t) => t.id == widget.taskId)
+        .cast<Task?>()
+        .firstWhere((_) => true, orElse: () => null);
     if (task == null) return;
 
     repo.update(task.copyWith(
