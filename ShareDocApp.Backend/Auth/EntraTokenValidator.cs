@@ -25,7 +25,7 @@ public class EntraTokenValidator
             new HttpDocumentRetriever());
     }
 
-    internal EntraTokenValidator(string issuer, string audience, TokenValidationParameters overrideParams)
+    public EntraTokenValidator(string issuer, string audience, TokenValidationParameters overrideParams)
     {
         _issuer = issuer;
         _audience = audience;

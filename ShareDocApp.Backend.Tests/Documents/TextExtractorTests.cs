@@ -6,6 +6,7 @@ using ShareDocApp.Backend.Common;
 using ShareDocApp.Backend.Documents;
 using UglyToad.PdfPig.Writer;
 using Xunit;
+using DocumentType = ShareDocApp.Backend.Documents.DocumentType;
 
 namespace ShareDocApp.Backend.Tests.Documents;
 

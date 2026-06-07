@@ -24,7 +24,7 @@ public class OpenAiProvider : IAiProvider
     {
     }
 
-    internal OpenAiProvider(HttpClient httpClient, string model)
+    public OpenAiProvider(HttpClient httpClient, string model)
     {
         _http = httpClient;
         _model = model;

@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using ShareDocApp.Backend.Ai;
 using ShareDocApp.Backend.Auth;
+using ShareDocApp.Backend.Documents;
 using ShareDocApp.Backend.Storage;
 
 var host = new HostBuilder()
@@ -49,7 +50,7 @@ var host = new HostBuilder()
             throw new InvalidOperationException($"Unsupported AI provider: '{aiProvider}'. Only 'openai' is supported in v1.");
         }
 
-        services.AddSingleton<Documents.TextExtractor>();
+        services.AddSingleton<TextExtractor>();
     })
     .Build();
 
