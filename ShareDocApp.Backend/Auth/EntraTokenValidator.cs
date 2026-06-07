@@ -69,11 +69,15 @@ public class EntraTokenValidator
     private async Task<TokenValidationParameters> BuildValidationParametersAsync(CancellationToken ct)
     {
         var config = await _configManager!.GetConfigurationAsync(ct);
+        var signingKeys = config.SigningKeys;
+        if (signingKeys.Count == 0 && config.JsonWebKeySet is not null)
+            signingKeys = config.JsonWebKeySet.GetSigningKeys();
+
         return new TokenValidationParameters
         {
             ValidIssuer = _issuer,
             ValidAudience = _audience,
-            IssuerSigningKeys = config.SigningKeys,
+            IssuerSigningKeys = signingKeys,
             ValidateIssuer = true,
             ValidateAudience = true,
             ValidateLifetime = true,
