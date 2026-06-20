@@ -3,11 +3,45 @@ import 'package:dio/dio.dart';
 import '../core/result.dart';
 import 'api_client.dart';
 
-class DocumentResult {
+class DocumentAction {
+  final String title;
   final String? summary;
-  final String? expiryDate;
+  final String? dueDate;
   final String severity;
   final List<Map<String, dynamic>> steps;
+  final bool isRecurring;
+  final String? recurrence;
+  final String? alert;
+
+  const DocumentAction({
+    required this.title,
+    this.summary,
+    this.dueDate,
+    this.severity = 'low',
+    this.steps = const [],
+    this.isRecurring = false,
+    this.recurrence,
+    this.alert,
+  });
+
+  factory DocumentAction.fromJson(Map<String, dynamic> json) => DocumentAction(
+        title: json['title'] as String? ?? '',
+        summary: json['summary'] as String?,
+        dueDate: json['dueDate'] as String?,
+        severity: json['severity'] as String? ?? 'low',
+        steps: (json['steps'] as List?)
+                ?.map((e) => Map<String, dynamic>.from(e))
+                .toList() ??
+            [],
+        isRecurring: json['isRecurring'] as bool? ?? false,
+        recurrence: json['recurrence'] as String?,
+        alert: json['alert'] as String?,
+      );
+}
+
+class DocumentResult {
+  final String? summary;
+  final List<DocumentAction> actions;
   final List<String> phones;
   final Map<String, dynamic>? geo;
   final String? address;
@@ -17,9 +51,7 @@ class DocumentResult {
 
   const DocumentResult({
     this.summary,
-    this.expiryDate,
-    this.severity = 'low',
-    this.steps = const [],
+    this.actions = const [],
     this.phones = const [],
     this.geo,
     this.address,
@@ -30,10 +62,9 @@ class DocumentResult {
 
   factory DocumentResult.fromJson(Map<String, dynamic> json) => DocumentResult(
         summary: json['summary'] as String?,
-        expiryDate: json['expiryDate'] as String?,
-        severity: json['severity'] as String? ?? 'low',
-        steps: (json['steps'] as List?)
-                ?.map((e) => Map<String, dynamic>.from(e))
+        actions: (json['actions'] as List?)
+                ?.map((e) => DocumentAction.fromJson(
+                    Map<String, dynamic>.from(e as Map)))
                 .toList() ??
             [],
         phones:
@@ -47,9 +78,9 @@ class DocumentResult {
 }
 
 class DocumentsApi {
-  final ApiClient _client;
+  final ApiClient? _client;
 
-  DocumentsApi(this._client);
+  DocumentsApi([this._client]);
 
   Future<Result<DocumentResult>> parse(File file, bool persist) async {
     final formData = FormData.fromMap({
@@ -60,7 +91,7 @@ class DocumentsApi {
       'persist': persist.toString(),
     });
 
-    return _client.postMultipart(
+    return _client!.postMultipart(
       '/documents',
       formData,
       (json) => DocumentResult.fromJson(json),

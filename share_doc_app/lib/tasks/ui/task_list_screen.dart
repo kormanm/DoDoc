@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:path/path.dart' as p;
 import 'package:provider/provider.dart';
 import '../data/task_repository.dart';
 import '../models/task.dart';
@@ -48,7 +49,9 @@ class _TaskTile extends StatelessWidget {
         overflow: TextOverflow.ellipsis,
       ),
       subtitle: Text(
-        task.summary.isNotEmpty ? task.summary : task.documentName,
+        task.summary.isNotEmpty
+            ? task.summary
+            : p.basename(task.documentName).replaceFirst(RegExp(r'^\d+_'), ''),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
       ),

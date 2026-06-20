@@ -35,9 +35,16 @@ public class DocumentsFunctionTests
             .ReturnsAsync(Result<AiResult>.Ok(new AiResult
             {
                 Summary = "Test summary",
-                Severity = Severity.Medium,
                 Confidence = 0.85,
-                Steps = [new ActionStep("Do something", null)],
+                Actions =
+                [
+                    new AiAction
+                    {
+                        Title = "Do something",
+                        Severity = Severity.Medium,
+                        Steps = [new ActionStep("Do something", null)]
+                    }
+                ],
                 Phones = [],
             }));
 
@@ -47,7 +54,8 @@ public class DocumentsFunctionTests
         var ok = Assert.IsType<OkObjectResult>(result);
         var dto = Assert.IsType<DocumentResultDto>(ok.Value);
         Assert.Equal("Test summary", dto.Summary);
-        Assert.Equal("medium", dto.Severity);
+        Assert.Single(dto.Actions);
+        Assert.Equal("medium", dto.Actions[0].Severity);
         Assert.False(dto.ParseFailed);
         Assert.Null(dto.BlobRef);
     }

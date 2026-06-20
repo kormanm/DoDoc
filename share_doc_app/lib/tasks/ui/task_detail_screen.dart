@@ -1,4 +1,8 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:open_filex/open_filex.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart' as launcher;
 import '../data/task_repository.dart';
@@ -56,6 +60,7 @@ class TaskDetailScreen extends StatelessWidget {
                   );
                   if (confirmed == true && context.mounted) {
                     await repo.delete(taskId);
+                    if (!context.mounted) return;
                     Navigator.of(context).pop();
                   }
                 },
@@ -86,7 +91,7 @@ class TaskDetailScreen extends StatelessWidget {
                     ),
                   ),
                 _section('Summary', task.summary),
-                _section('Document', task.documentName),
+                _documentSection(context, task),
                 _chipRow('Severity', _severityLabel(task.severity),
                     _severityColor(task.severity)),
                 _chipRow(
@@ -148,6 +153,89 @@ class TaskDetailScreen extends StatelessWidget {
     );
   }
 
+  Widget _documentSection(BuildContext context, Task task) {
+    if (task.documentName.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Document',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 4),
+          InkWell(
+            onTap: () => _openDocument(context, task),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Row(
+                children: [
+                  const Icon(Icons.description_outlined),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _displayDocumentName(task.documentName),
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.primary,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  ),
+                  const Icon(Icons.open_in_new, size: 18),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _displayDocumentName(String reference) {
+    final name = p.basename(reference);
+    return name.replaceFirst(RegExp(r'^\d+_'), '');
+  }
+
+  Future<void> _openDocument(BuildContext context, Task task) async {
+    final appDirectory = await getApplicationDocumentsDirectory();
+    final candidates = <File>[
+      File(p.join(
+        appDirectory.path,
+        'shared_documents',
+        task.documentName,
+      )),
+      File(task.documentName),
+    ];
+
+    File? document;
+    for (final candidate in candidates) {
+      if (await candidate.exists()) {
+        document = candidate;
+        break;
+      }
+    }
+
+    if (document == null) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Document is not available on this phone')),
+        );
+      }
+      return;
+    }
+
+    final result = await OpenFilex.open(
+      document.path,
+      type: task.sourceMime.isEmpty ? null : task.sourceMime,
+    );
+    if (result.type != ResultType.done && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result.message)),
+      );
+    }
+  }
+
   Widget _chipRow(String label, String value, Color color) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -157,7 +245,7 @@ class TaskDetailScreen extends StatelessWidget {
               style: const TextStyle(fontWeight: FontWeight.bold)),
           Chip(
             label: Text(value),
-            backgroundColor: color.withOpacity(0.2),
+            backgroundColor: color.withValues(alpha: 0.2),
           ),
         ],
       ),

@@ -90,7 +90,7 @@ public class OpenAiProvider : IAiProvider
                 role = "user",
                 content = new object[]
                 {
-                    new { type = "text", text = "Analyze this document image and extract structured information." },
+                    new { type = "text", text = PromptBuilder.BuildUserPrompt("The document is provided as the attached image.") },
                     new { type = "image_url", image_url = new { url = dataUri } }
                 }
             });
@@ -137,7 +137,6 @@ public class OpenAiProvider : IAiProvider
         ParseFailed = true,
         Summary = null,
         Confidence = 0,
-        Severity = Severity.Low
     };
 
     private static HttpClient CreateHttpClient(string apiKey)
@@ -154,17 +153,35 @@ public class OpenAiProvider : IAiProvider
           "type": "object",
           "properties": {
             "summary": { "type": ["string", "null"] },
-            "expiryDate": { "type": ["string", "null"], "description": "ISO date YYYY-MM-DD or null" },
-            "severity": { "type": "string", "enum": ["low", "medium", "high", "critical"] },
-            "steps": {
+            "actions": {
               "type": "array",
               "items": {
                 "type": "object",
                 "properties": {
-                  "text": { "type": "string" },
-                  "phone": { "type": ["string", "null"] }
+                  "title": {
+                    "type": "string",
+                    "description": "Very short action title, 2 to 4 words, starting with a verb"
+                  },
+                  "summary": { "type": ["string", "null"] },
+                  "dueDate": { "type": ["string", "null"], "description": "ISO date YYYY-MM-DD or null" },
+                  "severity": { "type": "string", "enum": ["low", "medium", "high", "critical"] },
+                  "steps": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "text": { "type": "string" },
+                        "phone": { "type": ["string", "null"] }
+                      },
+                      "required": ["text", "phone"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "isRecurring": { "type": "boolean" },
+                  "recurrence": { "type": ["string", "null"] },
+                  "alert": { "type": ["string", "null"] }
                 },
-                "required": ["text", "phone"],
+                "required": ["title", "summary", "dueDate", "severity", "steps", "isRecurring", "recurrence", "alert"],
                 "additionalProperties": false
               }
             },
@@ -182,7 +199,7 @@ public class OpenAiProvider : IAiProvider
             "confidence": { "type": "number" },
             "parseFailed": { "type": "boolean" }
           },
-          "required": ["summary", "expiryDate", "severity", "steps", "phones", "geo", "address", "confidence", "parseFailed"],
+          "required": ["summary", "actions", "phones", "geo", "address", "confidence", "parseFailed"],
           "additionalProperties": false
         }
         """;

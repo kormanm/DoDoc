@@ -47,12 +47,23 @@ public class OpenAiProviderTests
         var aiResult = new
         {
             summary = "Insurance renewal notice",
-            expiryDate = "2025-03-15",
-            severity = "high",
-            steps = new[]
+            actions = new[]
             {
-                new { text = "Call insurance company", phone = "+31201234567" },
-                new { text = "Submit renewal form", phone = (string?)null }
+                new
+                {
+                    title = "Renew insurance",
+                    summary = "Renew the policy before it expires",
+                    dueDate = "2025-03-15",
+                    severity = "high",
+                    steps = new[]
+                    {
+                        new { text = "Call insurance company", phone = (string?)"+31201234567" },
+                        new { text = "Submit renewal form", phone = (string?)null }
+                    },
+                    isRecurring = false,
+                    recurrence = (string?)null,
+                    alert = "Before the deadline"
+                }
             },
             phones = new[] { "+31201234567" },
             geo = new { lat = 52.37, lon = 4.89 },
@@ -69,11 +80,12 @@ public class OpenAiProviderTests
         Assert.True(result.IsSuccess);
         var value = result.Value!;
         Assert.Equal("Insurance renewal notice", value.Summary);
-        Assert.Equal(new DateOnly(2025, 3, 15), value.ExpiryDate);
-        Assert.Equal(Severity.High, value.Severity);
-        Assert.Equal(2, value.Steps.Count);
-        Assert.Equal("Call insurance company", value.Steps[0].Text);
-        Assert.Equal("+31201234567", value.Steps[0].Phone);
+        Assert.Single(value.Actions);
+        Assert.Equal(new DateOnly(2025, 3, 15), value.Actions[0].DueDate);
+        Assert.Equal(Severity.High, value.Actions[0].Severity);
+        Assert.Equal(2, value.Actions[0].Steps.Count);
+        Assert.Equal("Call insurance company", value.Actions[0].Steps[0].Text);
+        Assert.Equal("+31201234567", value.Actions[0].Steps[0].Phone);
         Assert.Single(value.Phones);
         Assert.NotNull(value.Geo);
         Assert.Equal(52.37, value.Geo!.Lat);
@@ -88,9 +100,7 @@ public class OpenAiProviderTests
         var aiResult = new
         {
             summary = "Scanned letter",
-            expiryDate = (string?)null,
-            severity = "low",
-            steps = Array.Empty<object>(),
+            actions = Array.Empty<object>(),
             phones = Array.Empty<string>(),
             geo = (object?)null,
             address = (string?)null,
@@ -123,9 +133,7 @@ public class OpenAiProviderTests
         var aiResult = new
         {
             summary = (string?)null,
-            expiryDate = (string?)null,
-            severity = "low",
-            steps = Array.Empty<object>(),
+            actions = Array.Empty<object>(),
             phones = Array.Empty<string>(),
             geo = (object?)null,
             address = (string?)null,
@@ -140,10 +148,9 @@ public class OpenAiProviderTests
 
         Assert.True(result.IsSuccess);
         Assert.Null(result.Value!.Summary);
-        Assert.Null(result.Value.ExpiryDate);
+        Assert.Empty(result.Value.Actions);
         Assert.Null(result.Value.Geo);
         Assert.Null(result.Value.Address);
-        Assert.Empty(result.Value.Steps);
         Assert.Empty(result.Value.Phones);
     }
 
@@ -219,9 +226,7 @@ public class OpenAiProviderTests
         var aiResult = new
         {
             summary = (string?)null,
-            expiryDate = (string?)null,
-            severity = "low",
-            steps = Array.Empty<object>(),
+            actions = Array.Empty<object>(),
             phones = Array.Empty<string>(),
             geo = (object?)null,
             address = (string?)null,

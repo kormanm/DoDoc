@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:share_doc_app/core/config.dart';
 import 'package:share_doc_app/share/share_handler.dart';
 import 'package:share_doc_app/api/documents_api.dart';
 import 'package:share_doc_app/core/result.dart';
@@ -11,7 +10,7 @@ class FakeDocumentsApi extends DocumentsApi {
   DocumentResult? resultToReturn;
   Failure? failureToReturn;
 
-  FakeDocumentsApi() : super(null as dynamic);
+  FakeDocumentsApi() : super();
 
   @override
   Future<Result<DocumentResult>> parse(File file, bool persist) async {
@@ -99,10 +98,15 @@ void main() {
     test('creates task from successful parse', () async {
       fakeApi.resultToReturn = const DocumentResult(
         summary: 'Insurance notice',
-        expiryDate: '2025-06-01',
-        severity: 'high',
-        steps: [
-          {'text': 'Call agent', 'phone': '+31201234567'}
+        actions: [
+          DocumentAction(
+            title: 'Renew comprehensive home insurance policy',
+            dueDate: '2025-06-01',
+            severity: 'high',
+            steps: [
+              {'text': 'Call agent', 'phone': '+31201234567'}
+            ],
+          ),
         ],
         phones: ['+31201234567'],
         confidence: 0.9,
@@ -114,11 +118,66 @@ void main() {
       final result = await handler.handleSharedFile(file);
 
       expect(result.isSuccess, true);
-      expect(result.value!.title, 'Insurance notice');
-      expect(result.value!.severity, Severity.high);
-      expect(result.value!.steps.length, 1);
-      expect(result.value!.phones, ['+31201234567']);
-      expect(result.value!.parseFailed, false);
+      expect(result.value, hasLength(1));
+      expect(result.value!.single.title, 'Renew comprehensive home insurance');
+      expect(result.value!.single.severity, Severity.high);
+      expect(result.value!.single.steps.length, 1);
+      expect(result.value!.single.phones, ['+31201234567']);
+      expect(result.value!.single.parseFailed, false);
+      tmpDir.deleteSync(recursive: true);
+    });
+
+    test('preserves stored document reference for opening', () async {
+      fakeApi.resultToReturn = const DocumentResult(
+        actions: [DocumentAction(title: 'Review insurance letter')],
+      );
+
+      final tmpDir = Directory.systemTemp.createTempSync();
+      final file = File('${tmpDir.path}/letter.pdf')
+        ..writeAsBytesSync([0x25, 0x50]);
+      final result = await handler.handleSharedFile(
+        file,
+        documentReference: '123456_letter.pdf',
+      );
+
+      expect(result.value!.single.documentName, '123456_letter.pdf');
+      tmpDir.deleteSync(recursive: true);
+    });
+
+    test('creates separate purchase and recurring medication tasks', () async {
+      fakeApi.resultToReturn = const DocumentResult(
+        summary: 'Prescription for Amoxicillin',
+        actions: [
+          DocumentAction(
+            title: 'Purchase Amoxicillin',
+            dueDate: '2026-06-30',
+            severity: 'high',
+          ),
+          DocumentAction(
+            title: 'Take Amoxicillin',
+            summary: 'Take one tablet',
+            severity: 'critical',
+            isRecurring: true,
+            recurrence: '3 times daily for 7 days',
+            alert: 'At each prescribed dose',
+          ),
+        ],
+        confidence: 0.95,
+      );
+
+      final tmpDir = Directory.systemTemp.createTempSync();
+      final file = File('${tmpDir.path}/prescription.pdf')
+        ..writeAsBytesSync([0x25, 0x50]);
+      final result = await handler.handleSharedFile(file);
+
+      expect(result.isSuccess, true);
+      expect(result.value, hasLength(2));
+      expect(result.value![0].title, 'Purchase Amoxicillin');
+      expect(result.value![0].dueDate, DateTime(2026, 6, 30));
+      expect(result.value![1].title, 'Take Amoxicillin');
+      expect(result.value![1].severity, Severity.critical);
+      expect(result.value![1].summary, contains('3 times daily for 7 days'));
+      expect(result.value![1].summary, contains('At each prescribed dose'));
       tmpDir.deleteSync(recursive: true);
     });
 
@@ -134,9 +193,9 @@ void main() {
       final result = await handler.handleSharedFile(file);
 
       expect(result.isSuccess, true);
-      expect(result.value!.parseFailed, true);
-      expect(result.value!.title, 'letter.docx');
-      expect(result.value!.summary, contains('edit manually'));
+      expect(result.value!.single.parseFailed, true);
+      expect(result.value!.single.title, 'letter.docx');
+      expect(result.value!.single.summary, contains('edit manually'));
       tmpDir.deleteSync(recursive: true);
     });
 
@@ -149,8 +208,8 @@ void main() {
       final result = await handler.handleSharedFile(file);
 
       expect(result.isSuccess, true);
-      expect(result.value!.parseFailed, true);
-      expect(result.value!.documentName, 'scan.png');
+      expect(result.value!.single.parseFailed, true);
+      expect(result.value!.single.documentName, 'scan.png');
       tmpDir.deleteSync(recursive: true);
     });
   });
