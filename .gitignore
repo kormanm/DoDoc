@@ -35,4 +35,5 @@ share_doc_app/pubspec.lock
 *.env
 appsettings.*.json
 !appsettings.json
-/.tmp/backend-bin/Debug/net8.0
+# Local build/verification scratch output
+/.tmp/

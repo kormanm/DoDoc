@@ -1,0 +1,9 @@
+{
+  "API_BASE_URL": "https://sharedoc-func.azurewebsites.net/api",
+  "ENTRA_CLIENT_ID": "0d7f2ddb-e708-44a1-956b-64f094495935",
+  "ENTRA_ISSUER": "https://732cfbaf-a00f-48af-8eb0-19fe116a65c9.ciamlogin.com/732cfbaf-a00f-48af-8eb0-19fe116a65c9/v2.0",
+  "ENTRA_DISCOVERY_URL": "https://sharedoccustomers.ciamlogin.com/732cfbaf-a00f-48af-8eb0-19fe116a65c9/v2.0/.well-known/openid-configuration",
+  "TODO_CLIENT_ID": "8f9b7678-dce0-47da-820f-e7bd6eac626d",
+  "TODO_ISSUER": "https://login.microsoftonline.com/common/v2.0",
+  "TODO_DISCOVERY_URL": "https://login.microsoftonline.com/common/v2.0/.well-known/openid-configuration"
+}

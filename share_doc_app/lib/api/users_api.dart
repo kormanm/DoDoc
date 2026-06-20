@@ -42,4 +42,16 @@ class UsersApi {
   Future<Result<UserProfile>> updateConsent(bool persistDocs) =>
       _client.put('/users/me/consent', {'persistDocs': persistDocs},
           (json) => UserProfile.fromJson(json));
+
+  Future<Result<UserProfile>> updateProfile(
+    String displayName,
+    String email,
+  ) =>
+      _client.put(
+        '/users/me',
+        {'displayName': displayName, 'email': email},
+        (json) => UserProfile.fromJson(json),
+      );
+
+  Future<Result<void>> deleteMe() => _client.delete('/users/me');
 }

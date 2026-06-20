@@ -85,7 +85,11 @@ class TaskRepository extends ChangeNotifier {
     }
 
     final currentTasks = await _db.getAllTasks();
-    await _todoSync.syncTasks(currentTasks, _applyRemoteStatusChange);
+    await _todoSync.syncTasks(
+      currentTasks,
+      _applyRemoteStatusChange,
+      _importRemoteTask,
+    );
 
     _tasks = await _db.getAllTasks();
     notifyListeners();
@@ -118,7 +122,11 @@ class TaskRepository extends ChangeNotifier {
         if (index >= 0) _tasks[index] = synced;
         notifyListeners();
         await _notifications.rebuildNotification(await _db.getTodayTasks());
-        await _todoSync.syncTasks([synced], _applyRemoteStatusChange);
+        await _todoSync.syncTasks(
+          [synced],
+          _applyRemoteStatusChange,
+          _importRemoteTask,
+        );
       }
     } catch (_) {}
   }
@@ -133,7 +141,11 @@ class TaskRepository extends ChangeNotifier {
         if (index >= 0) _tasks[index] = synced;
         notifyListeners();
         await _notifications.rebuildNotification(await _db.getTodayTasks());
-        await _todoSync.syncTasks([synced], _applyRemoteStatusChange);
+        await _todoSync.syncTasks(
+          [synced],
+          _applyRemoteStatusChange,
+          _importRemoteTask,
+        );
       }
     } catch (_) {}
   }
@@ -159,5 +171,17 @@ class TaskRepository extends ChangeNotifier {
     notifyListeners();
     await _notifications.rebuildNotification(await _db.getTodayTasks());
     _syncUpdate(withSyncFlag);
+  }
+
+  Future<Task?> _importRemoteTask(Task remoteTask) async {
+    final result = await _api.create(remoteTask);
+    if (result.isFailure) return null;
+
+    final synced = result.value!.copyWith(pendingSync: false);
+    await _db.upsertTask(synced);
+    _tasks.add(synced);
+    notifyListeners();
+    await _notifications.rebuildNotification(await _db.getTodayTasks());
+    return synced;
   }
 }

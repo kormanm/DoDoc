@@ -99,6 +99,7 @@ class TodoSyncService extends ChangeNotifier {
   }
 
   Future<void> disconnect() async {
+    await _authService.disconnectMicrosoftTodo();
     _isConnected = false;
     _statusMessage = 'Microsoft To Do disconnected';
     notifyListeners();
@@ -107,6 +108,7 @@ class TodoSyncService extends ChangeNotifier {
   Future<Result<void>> syncTasks(
     List<Task> tasks,
     Future<void> Function(Task task) onRemoteStatusChanged,
+    Future<Task?> Function(Task task) onRemoteTaskCreated,
   ) async {
     final tokenResult = await _authService.getValidMicrosoftTodoToken();
     if (tokenResult.isFailure) {
@@ -144,6 +146,32 @@ class TodoSyncService extends ChangeNotifier {
       if (shareDocTaskId != null) {
         remoteByShareDocId[shareDocTaskId] = remote;
       }
+    }
+
+    for (final remote in remoteTasksResult.value!) {
+      if (_extractShareDocTaskId(remote.bodyContent) != null) continue;
+
+      final imported = await onRemoteTaskCreated(
+        Task(
+          title: remote.title,
+          summary: remote.bodyContent ?? '',
+          status: remote.status == 'completed'
+              ? TaskStatus.done
+              : TaskStatus.open,
+          dueDate: remote.dueDateTime,
+          createdAt: remote.createdDateTime,
+          updatedAt: remote.lastModifiedDateTime,
+        ),
+      );
+      if (imported?.id == null) continue;
+
+      await _updateTodoTask(
+        tokenResult.value!,
+        listResult.value!,
+        remote.id,
+        imported!,
+      );
+      remoteByShareDocId[imported.id!] = remote;
     }
 
     for (final task in tasks) {
@@ -373,6 +401,7 @@ class _TodoTask {
   final String title;
   final String status;
   final String? bodyContent;
+  final DateTime createdDateTime;
   final DateTime lastModifiedDateTime;
   final DateTime? dueDateTime;
 
@@ -381,6 +410,7 @@ class _TodoTask {
     required this.title,
     required this.status,
     required this.bodyContent,
+    required this.createdDateTime,
     required this.lastModifiedDateTime,
     required this.dueDateTime,
   });
@@ -395,6 +425,10 @@ class _TodoTask {
       bodyContent: body is Map<String, dynamic>
           ? body['content'] as String?
           : null,
+      createdDateTime: DateTime.parse(
+        json['createdDateTime'] as String? ??
+            json['lastModifiedDateTime'] as String,
+      ),
       lastModifiedDateTime:
           DateTime.parse(json['lastModifiedDateTime'] as String),
       dueDateTime: dueDateTime != null && dueDateTime['dateTime'] != null

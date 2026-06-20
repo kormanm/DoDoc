@@ -10,6 +10,7 @@ import 'consent/consent_screen.dart';
 import 'consent/consent_service.dart';
 import 'settings/settings_screen.dart';
 import 'share/share_receiver.dart';
+import 'todo/todo_sync_service.dart';
 import 'tasks/data/task_repository.dart';
 import 'tasks/models/task.dart';
 import 'tasks/ui/task_detail_screen.dart';
@@ -105,16 +106,25 @@ class _LoginScreen extends StatelessWidget {
                 final authService = context.read<AuthService>();
                 final result =
                     await authService.signIn(forceAccountSelection: true);
-                if (result.isSuccess && context.mounted) {
-                  final taskRepository = context.read<TaskRepository>();
-                  await context.read<ConsentService>().loadFromProfile();
-                  await context
-                      .read<TodoSyncService>()
-                      .ensureConnectedForSession(interactiveIfMissing: true);
-                  await taskRepository.syncAll();
+                if (!context.mounted) return;
+                if (result.isFailure) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(result.failure!.message),
+                      duration: const Duration(seconds: 10),
+                    ),
+                  );
+                  return;
                 }
+
+                final taskRepository = context.read<TaskRepository>();
+                await context.read<ConsentService>().loadFromProfile();
+                await context
+                    .read<TodoSyncService>()
+                    .ensureConnectedForSession(interactiveIfMissing: true);
+                await taskRepository.syncAll();
               },
-              child: const Text('Sign in with Microsoft'),
+              child: const Text('Sign in or create account'),
             ),
           ],
         ),

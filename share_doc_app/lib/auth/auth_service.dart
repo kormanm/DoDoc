@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_appauth/flutter_appauth.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../core/config.dart';
@@ -17,18 +18,24 @@ class AuthService {
   static const _graphAccessTokenKey = 'graph_access_token';
   static const _graphRefreshTokenKey = 'graph_refresh_token';
   static const _graphSetupAttemptedKey = 'graph_setup_attempted';
-  static const _scopes = [
-    'openid',
-    'profile',
-    'email',
-    'offline_access',
-    'api://74271d3d-50b1-438c-9dee-9163ab3a1fd2/access_as_user',
-  ];
+  List<String> get _scopes => [
+        'openid',
+        'profile',
+        'email',
+        'offline_access',
+        'api://${AppConfig.entraClientId}/access_as_user',
+      ];
 
   AuthService(this._appAuth, this._storage, this._authState);
 
   Future<Result<String>> signIn({bool forceAccountSelection = true}) async {
     try {
+      if (AppConfig.entraClientId.isEmpty) {
+        return Result.fail(
+          Failure.auth('ShareDoc authentication is not configured'),
+        );
+      }
+
       final result = await _appAuth.authorizeAndExchangeCode(
         AuthorizationTokenRequest(
           AppConfig.entraClientId,
@@ -58,6 +65,7 @@ class AuthService {
       _authState.setAuthenticated(result.accessToken!);
       return Result.ok(result.accessToken!);
     } catch (e) {
+      debugPrint('AuthService.signIn failed: $e');
       return Result.fail(Failure.auth('Sign-in failed: $e'));
     }
   }
@@ -105,14 +113,20 @@ class AuthService {
     bool forceAccountSelection = false,
   }) async {
     try {
+      if (AppConfig.todoClientId.isEmpty) {
+        return Result.fail(
+          Failure.auth('Microsoft To Do connection is not configured'),
+        );
+      }
+
       if (interactive) {
         final result = await _appAuth.authorizeAndExchangeCode(
           AuthorizationTokenRequest(
-            AppConfig.entraClientId,
+            AppConfig.todoClientId,
             AppConfig.entraRedirectUri,
-            issuer: AppConfig.entraIssuer,
-            discoveryUrl: AppConfig.entraDiscoveryUrl.isNotEmpty
-                ? AppConfig.entraDiscoveryUrl
+            issuer: AppConfig.todoIssuer,
+            discoveryUrl: AppConfig.todoDiscoveryUrl.isNotEmpty
+                ? AppConfig.todoDiscoveryUrl
                 : null,
             scopes: AppConfig.graphScopes,
             promptValues: forceAccountSelection
@@ -147,11 +161,11 @@ class AuthService {
 
       final result = await _appAuth.token(
         TokenRequest(
-          AppConfig.entraClientId,
+          AppConfig.todoClientId,
           AppConfig.entraRedirectUri,
-          issuer: AppConfig.entraIssuer,
-          discoveryUrl: AppConfig.entraDiscoveryUrl.isNotEmpty
-              ? AppConfig.entraDiscoveryUrl
+          issuer: AppConfig.todoIssuer,
+          discoveryUrl: AppConfig.todoDiscoveryUrl.isNotEmpty
+              ? AppConfig.todoDiscoveryUrl
               : null,
           refreshToken: refreshToken,
           scopes: AppConfig.graphScopes,
@@ -210,12 +224,16 @@ class AuthService {
     await _storage.write(key: _graphSetupAttemptedKey, value: 'true');
   }
 
-  Future<void> signOut() async {
-    await _storage.delete(key: _accessTokenKey);
-    await _storage.delete(key: _refreshTokenKey);
+  Future<void> disconnectMicrosoftTodo() async {
     await _storage.delete(key: _graphAccessTokenKey);
     await _storage.delete(key: _graphRefreshTokenKey);
     await _storage.delete(key: _graphSetupAttemptedKey);
+  }
+
+  Future<void> signOut() async {
+    await _storage.delete(key: _accessTokenKey);
+    await _storage.delete(key: _refreshTokenKey);
+    await disconnectMicrosoftTodo();
     _authState.setUnauthenticated();
   }
 

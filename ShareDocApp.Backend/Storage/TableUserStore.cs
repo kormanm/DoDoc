@@ -34,4 +34,9 @@ public class TableUserStore : IUserStore
         await _table.UpsertEntityAsync(entity, TableUpdateMode.Replace, ct);
         return entity;
     }
+
+    public async Task DeleteAsync(string userId, CancellationToken ct)
+    {
+        await _table.DeleteEntityAsync("USER", userId, ETag.All, ct);
+    }
 }

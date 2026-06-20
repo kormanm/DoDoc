@@ -20,9 +20,6 @@ class AppConfig {
   static const String todoListName = 'ShareDoc';
   static const String graphBaseUrl = 'https://graph.microsoft.com/v1.0';
   static const List<String> graphScopes = [
-    'openid',
-    'profile',
-    'email',
     'offline_access',
     'Tasks.ReadWrite',
   ];
@@ -30,6 +27,22 @@ class AppConfig {
   static const String entraDiscoveryUrl = String.fromEnvironment(
     'ENTRA_DISCOVERY_URL',
     defaultValue: '',
+  );
+
+  static const String todoClientId = String.fromEnvironment(
+    'TODO_CLIENT_ID',
+    defaultValue: '',
+  );
+
+  static const String todoIssuer = String.fromEnvironment(
+    'TODO_ISSUER',
+    defaultValue: 'https://login.microsoftonline.com/common/v2.0',
+  );
+
+  static const String todoDiscoveryUrl = String.fromEnvironment(
+    'TODO_DISCOVERY_URL',
+    defaultValue:
+        'https://login.microsoftonline.com/common/v2.0/.well-known/openid-configuration',
   );
 
   static const int maxFileSizeBytes = 10 * 1024 * 1024;
