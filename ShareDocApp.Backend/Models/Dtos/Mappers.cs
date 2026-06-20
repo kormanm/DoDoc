@@ -51,6 +51,7 @@ public static class Mappers
         DisplayName = entity.DisplayName,
         Email = entity.Email,
         PersistDocs = entity.PersistDocs,
+        ConsentConfigured = entity.ConsentConfigured,
         CreatedAt = entity.CreatedAt
     };
 }

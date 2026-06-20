@@ -6,6 +6,7 @@ class UserProfile {
   final String displayName;
   final String email;
   final bool persistDocs;
+  final bool consentConfigured;
   final DateTime createdAt;
 
   const UserProfile({
@@ -13,6 +14,7 @@ class UserProfile {
     required this.displayName,
     required this.email,
     required this.persistDocs,
+    required this.consentConfigured,
     required this.createdAt,
   });
 
@@ -21,6 +23,7 @@ class UserProfile {
         displayName: json['displayName'] as String? ?? '',
         email: json['email'] as String? ?? '',
         persistDocs: json['persistDocs'] as bool? ?? false,
+        consentConfigured: json['consentConfigured'] as bool? ?? false,
         createdAt: DateTime.parse(json['createdAt'] as String),
       );
 }

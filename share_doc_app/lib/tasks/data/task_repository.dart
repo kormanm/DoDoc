@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 import '../../api/tasks_api.dart';
-import '../../core/failures.dart';
 import '../../notifications/notification_service.dart';
+import '../../todo/todo_sync_service.dart';
 import '../models/task.dart';
 import 'local_task_dao.dart';
 
@@ -9,11 +9,12 @@ class TaskRepository extends ChangeNotifier {
   final AppDatabase _db;
   final TasksApi _api;
   final NotificationService _notifications;
+  final TodoSyncService _todoSync;
 
   List<Task> _tasks = [];
   List<Task> get tasks => List.unmodifiable(_tasks);
 
-  TaskRepository(this._db, this._api, this._notifications);
+  TaskRepository(this._db, this._api, this._notifications, this._todoSync);
 
   Future<void> loadAll() async {
     _tasks = await _db.getAllTasks();
@@ -51,12 +52,16 @@ class TaskRepository extends ChangeNotifier {
   }
 
   Future<void> delete(String taskId) async {
+    final task = _tasks.cast<Task?>().firstWhere(
+          (t) => t?.id == taskId,
+          orElse: () => null,
+        );
     await _db.deleteTask(taskId);
     _tasks.removeWhere((t) => t.id == taskId);
     notifyListeners();
     await _notifications.rebuildNotification(await _db.getTodayTasks());
 
-    _syncDelete(taskId);
+    _syncDelete(taskId, task);
   }
 
   Future<void> syncAll() async {
@@ -79,8 +84,12 @@ class TaskRepository extends ChangeNotifier {
       await _reconcile(remoteResult.value!);
     }
 
+    final currentTasks = await _db.getAllTasks();
+    await _todoSync.syncTasks(currentTasks, _applyRemoteStatusChange);
+
     _tasks = await _db.getAllTasks();
     notifyListeners();
+    await _notifications.rebuildNotification(await _db.getTodayTasks());
   }
 
   Future<void> _reconcile(List<Task> remoteTasks) async {
@@ -108,6 +117,8 @@ class TaskRepository extends ChangeNotifier {
         final index = _tasks.indexWhere((t) => t.id == task.id);
         if (index >= 0) _tasks[index] = synced;
         notifyListeners();
+        await _notifications.rebuildNotification(await _db.getTodayTasks());
+        await _todoSync.syncTasks([synced], _applyRemoteStatusChange);
       }
     } catch (_) {}
   }
@@ -121,13 +132,32 @@ class TaskRepository extends ChangeNotifier {
         final index = _tasks.indexWhere((t) => t.id == task.id);
         if (index >= 0) _tasks[index] = synced;
         notifyListeners();
+        await _notifications.rebuildNotification(await _db.getTodayTasks());
+        await _todoSync.syncTasks([synced], _applyRemoteStatusChange);
       }
     } catch (_) {}
   }
 
-  void _syncDelete(String taskId) async {
+  void _syncDelete(String taskId, Task? task) async {
     try {
+      if (task != null) {
+        await _todoSync.deleteTask(task);
+      }
       await _api.delete(taskId);
     } catch (_) {}
+  }
+
+  Future<void> _applyRemoteStatusChange(Task updatedTask) async {
+    final withSyncFlag = updatedTask.copyWith(pendingSync: true);
+    await _db.upsertTask(withSyncFlag);
+    final index = _tasks.indexWhere((t) => t.id == withSyncFlag.id);
+    if (index >= 0) {
+      _tasks[index] = withSyncFlag;
+    } else {
+      _tasks.add(withSyncFlag);
+    }
+    notifyListeners();
+    await _notifications.rebuildNotification(await _db.getTodayTasks());
+    _syncUpdate(withSyncFlag);
   }
 }

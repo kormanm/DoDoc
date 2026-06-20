@@ -40,6 +40,7 @@ public class UsersFunction
             DisplayName = "",
             Email = "",
             PersistDocs = false,
+            ConsentConfigured = false,
             CreatedAt = DateTime.UtcNow
         };
 
@@ -82,6 +83,7 @@ public class UsersFunction
             return HttpHelpers.ToErrorResponse(Errors.Validation("Invalid request body"));
 
         user.PersistDocs = body.PersistDocs;
+        user.ConsentConfigured = true;
         var updated = await _users.UpsertAsync(user, ct);
         return HttpHelpers.JsonOk(Mappers.ToDto(updated));
     }

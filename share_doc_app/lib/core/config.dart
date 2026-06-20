@@ -15,6 +15,17 @@ class AppConfig {
   );
 
   static const String entraRedirectUri = 'com.sharedoc.app://oauth';
+  static const String taskDeepLinkScheme = 'sharedoc';
+  static const String taskDeepLinkHost = 'task';
+  static const String todoListName = 'ShareDoc';
+  static const String graphBaseUrl = 'https://graph.microsoft.com/v1.0';
+  static const List<String> graphScopes = [
+    'openid',
+    'profile',
+    'email',
+    'offline_access',
+    'Tasks.ReadWrite',
+  ];
 
   static const String entraDiscoveryUrl = String.fromEnvironment(
     'ENTRA_DISCOVERY_URL',

@@ -12,22 +12,34 @@ class ConsentService extends ChangeNotifier {
   ConsentService(this._usersApi);
 
   Future<void> loadFromProfile() async {
-    await _usersApi.register();
+    final registerResult = await _usersApi.register();
+    if (registerResult.isFailure) {
+      debugPrint('ConsentService.loadFromProfile register failed: ${registerResult.failure}');
+    }
     final result = await _usersApi.getMe();
     if (result.isSuccess) {
       _persistDocs = result.value!.persistDocs;
-      _consentShown = true;
+      _consentShown = result.value!.consentConfigured;
       notifyListeners();
+    }
+    else {
+      debugPrint('ConsentService.loadFromProfile getMe failed: ${result.failure}');
     }
   }
 
   Future<void> updateConsent(bool persist) async {
-    await _usersApi.register();
+    final registerResult = await _usersApi.register();
+    if (registerResult.isFailure) {
+      debugPrint('ConsentService.updateConsent register failed: ${registerResult.failure}');
+    }
     final result = await _usersApi.updateConsent(persist);
     if (result.isSuccess) {
       _persistDocs = persist;
       _consentShown = true;
       notifyListeners();
+    }
+    else {
+      debugPrint('ConsentService.updateConsent failed: ${result.failure}');
     }
   }
 }

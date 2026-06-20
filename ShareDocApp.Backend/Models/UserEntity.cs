@@ -13,5 +13,6 @@ public class UserEntity : ITableEntity
     public string DisplayName { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
     public bool PersistDocs { get; set; }
+    public bool ConsentConfigured { get; set; }
     public DateTime CreatedAt { get; set; }
 }
