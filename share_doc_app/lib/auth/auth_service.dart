@@ -18,6 +18,7 @@ class AuthService {
   static const _graphAccessTokenKey = 'graph_access_token';
   static const _graphRefreshTokenKey = 'graph_refresh_token';
   static const _graphSetupAttemptedKey = 'graph_setup_attempted';
+  Future<Result<String>>? _graphRefreshInFlight;
   List<String> get _scopes => [
         'openid',
         'profile',
@@ -45,25 +46,24 @@ class AuthService {
               ? AppConfig.entraDiscoveryUrl
               : null,
           scopes: _scopes,
-          promptValues: forceAccountSelection
-              ? const ['select_account']
-              : null,
+          promptValues: forceAccountSelection ? const ['select_account'] : null,
         ),
       );
 
-      if (result == null || result.accessToken == null) {
+      final accessToken = result.accessToken;
+      if (accessToken == null) {
         return Result.fail(Failure.auth('Sign-in cancelled or failed'));
       }
 
-      _logTokenClaims('signIn', result.accessToken!);
+      _logTokenClaims('signIn', accessToken);
 
-      await _storage.write(key: _accessTokenKey, value: result.accessToken);
+      await _storage.write(key: _accessTokenKey, value: accessToken);
       if (result.refreshToken != null) {
         await _storage.write(key: _refreshTokenKey, value: result.refreshToken);
       }
 
-      _authState.setAuthenticated(result.accessToken!);
-      return Result.ok(result.accessToken!);
+      _authState.setAuthenticated(accessToken);
+      return Result.ok(accessToken);
     } catch (e) {
       debugPrint('AuthService.signIn failed: $e');
       return Result.fail(Failure.auth('Sign-in failed: $e'));
@@ -90,19 +90,20 @@ class AuthService {
         ),
       );
 
-      if (result == null || result.accessToken == null) {
+      final accessToken = result.accessToken;
+      if (accessToken == null) {
         return Result.fail(Failure.auth('Token refresh failed'));
       }
 
-      _logTokenClaims('refreshToken', result.accessToken!);
+      _logTokenClaims('refreshToken', accessToken);
 
-      await _storage.write(key: _accessTokenKey, value: result.accessToken);
+      await _storage.write(key: _accessTokenKey, value: accessToken);
       if (result.refreshToken != null) {
         await _storage.write(key: _refreshTokenKey, value: result.refreshToken);
       }
 
-      _authState.setAuthenticated(result.accessToken!);
-      return Result.ok(result.accessToken!);
+      _authState.setAuthenticated(accessToken);
+      return Result.ok(accessToken);
     } catch (e) {
       return Result.fail(Failure.auth('Token refresh failed: $e'));
     }
@@ -129,21 +130,21 @@ class AuthService {
                 ? AppConfig.todoDiscoveryUrl
                 : null,
             scopes: AppConfig.graphScopes,
-            promptValues: forceAccountSelection
-                ? const ['select_account']
-                : null,
+            promptValues:
+                forceAccountSelection ? const ['select_account'] : null,
           ),
         );
 
-        if (result == null || result.accessToken == null) {
+        final accessToken = result.accessToken;
+        if (accessToken == null) {
           return Result.fail(
             Failure.auth('Microsoft To Do sign-in cancelled or failed'),
           );
         }
 
-        _logTokenClaims('connectMicrosoftTodo', result.accessToken!);
-        await _persistGraphTokens(result.accessToken!, result.refreshToken);
-        return Result.ok(result.accessToken!);
+        _logTokenClaims('connectMicrosoftTodo', accessToken);
+        await _persistGraphTokens(accessToken, result.refreshToken);
+        return Result.ok(accessToken);
       }
 
       return refreshMicrosoftTodoToken();
@@ -153,6 +154,19 @@ class AuthService {
   }
 
   Future<Result<String>> refreshMicrosoftTodoToken() async {
+    final inFlight = _graphRefreshInFlight;
+    if (inFlight != null) return inFlight;
+
+    final refresh = _refreshMicrosoftTodoToken();
+    _graphRefreshInFlight = refresh;
+    try {
+      return await refresh;
+    } finally {
+      _graphRefreshInFlight = null;
+    }
+  }
+
+  Future<Result<String>> _refreshMicrosoftTodoToken() async {
     try {
       final refreshToken = await _storage.read(key: _graphRefreshTokenKey);
       if (refreshToken == null) {
@@ -172,13 +186,15 @@ class AuthService {
         ),
       );
 
-      if (result == null || result.accessToken == null) {
-        return Result.fail(Failure.auth('Microsoft To Do token refresh failed'));
+      final accessToken = result.accessToken;
+      if (accessToken == null) {
+        return Result.fail(
+            Failure.auth('Microsoft To Do token refresh failed'));
       }
 
-      _logTokenClaims('refreshMicrosoftTodoToken', result.accessToken!);
-      await _persistGraphTokens(result.accessToken!, result.refreshToken);
-      return Result.ok(result.accessToken!);
+      _logTokenClaims('refreshMicrosoftTodoToken', accessToken);
+      await _persistGraphTokens(accessToken, result.refreshToken);
+      return Result.ok(accessToken);
     } catch (e) {
       return Result.fail(
         Failure.auth('Microsoft To Do token refresh failed: $e'),
@@ -188,9 +204,13 @@ class AuthService {
 
   Future<Result<String>> getValidMicrosoftTodoToken() async {
     final stored = await _storage.read(key: _graphAccessTokenKey);
-    if (stored != null) {
+    if (stored != null && !_isTokenExpiring(stored)) {
       return Result.ok(stored);
     }
+    return refreshMicrosoftTodoToken();
+  }
+
+  Future<Result<String>> forceRefreshMicrosoftTodoToken() {
     return refreshMicrosoftTodoToken();
   }
 
@@ -247,6 +267,26 @@ class AuthService {
     }
   }
 
+  bool _isTokenExpiring(String token) {
+    try {
+      final parts = token.split('.');
+      if (parts.length < 2) return true;
+      final payload = jsonDecode(
+        utf8.decode(base64Url.decode(base64Url.normalize(parts[1]))),
+      );
+      if (payload is! Map<String, dynamic>) return true;
+      final exp = payload['exp'];
+      if (exp is! num) return true;
+      final expiresAt =
+          DateTime.fromMillisecondsSinceEpoch(exp.toInt() * 1000, isUtc: true);
+      return expiresAt.isBefore(
+        DateTime.now().toUtc().add(const Duration(minutes: 5)),
+      );
+    } catch (_) {
+      return true;
+    }
+  }
+
   void _logTokenClaims(String source, String token) {
     try {
       final parts = token.split('.');
@@ -256,7 +296,7 @@ class AuthService {
       final payload = utf8.decode(base64Url.decode(normalized));
       final json = jsonDecode(payload);
       if (json is Map<String, dynamic>) {
-        print(
+        debugPrint(
           'AuthService.$source token claims: '
           'aud=${json['aud']} iss=${json['iss']} oid=${json['oid']} sub=${json['sub']} '
           'scp=${json['scp']}',

@@ -20,6 +20,7 @@ class TodoSyncService extends ChangeNotifier {
   bool _isConnected = false;
   String? _statusMessage;
   DateTime? _lastSyncAt;
+  bool _syncInProgress = false;
 
   bool get isConnected => _isConnected;
   String? get statusMessage => _statusMessage;
@@ -86,7 +87,8 @@ class TodoSyncService extends ChangeNotifier {
       return const Result.ok(null);
     }
 
-    final alreadyAttempted = await _authService.hasAttemptedMicrosoftTodoSetup();
+    final alreadyAttempted =
+        await _authService.hasAttemptedMicrosoftTodoSetup();
     if (alreadyAttempted) {
       _isConnected = false;
       _statusMessage = 'Microsoft To Do not connected';
@@ -110,7 +112,58 @@ class TodoSyncService extends ChangeNotifier {
     Future<void> Function(Task task) onRemoteStatusChanged,
     Future<Task?> Function(Task task) onRemoteTaskCreated,
   ) async {
-    final tokenResult = await _authService.getValidMicrosoftTodoToken();
+    if (_syncInProgress) {
+      return Result.fail(
+          Failure.validation('Microsoft To Do sync already running'));
+    }
+    _syncInProgress = true;
+    try {
+      return await _syncTasksWithRetry(
+        tasks,
+        onRemoteStatusChanged,
+        onRemoteTaskCreated,
+      );
+    } finally {
+      _syncInProgress = false;
+    }
+  }
+
+  Future<Result<void>> _syncTasksWithRetry(
+    List<Task> tasks,
+    Future<void> Function(Task task) onRemoteStatusChanged,
+    Future<Task?> Function(Task task) onRemoteTaskCreated,
+  ) async {
+    Failure? lastFailure;
+    for (var attempt = 0; attempt < 3; attempt++) {
+      final result = await _syncTasksOnce(
+        tasks,
+        onRemoteStatusChanged,
+        onRemoteTaskCreated,
+        forceTokenRefresh: attempt > 0 && lastFailure?.type == FailureType.auth,
+      );
+      if (result.isSuccess) return result;
+      lastFailure = result.failure;
+      if (!_isRetryable(lastFailure!) || attempt == 2) break;
+      _statusMessage = 'Microsoft To Do temporarily unavailable. Retrying...';
+      notifyListeners();
+      await Future<void>.delayed(Duration(seconds: attempt + 1));
+    }
+
+    _isConnected = false;
+    _statusMessage = lastFailure?.message ?? 'Microsoft To Do sync failed';
+    notifyListeners();
+    return Result.fail(lastFailure ?? Failure.network());
+  }
+
+  Future<Result<void>> _syncTasksOnce(
+    List<Task> tasks,
+    Future<void> Function(Task task) onRemoteStatusChanged,
+    Future<Task?> Function(Task task) onRemoteTaskCreated, {
+    required bool forceTokenRefresh,
+  }) async {
+    final tokenResult = forceTokenRefresh
+        ? await _authService.forceRefreshMicrosoftTodoToken()
+        : await _authService.getValidMicrosoftTodoToken();
     if (tokenResult.isFailure) {
       _isConnected = false;
       _statusMessage = tokenResult.failure!.message;
@@ -155,9 +208,8 @@ class TodoSyncService extends ChangeNotifier {
         Task(
           title: remote.title,
           summary: remote.bodyContent ?? '',
-          status: remote.status == 'completed'
-              ? TaskStatus.done
-              : TaskStatus.open,
+          status:
+              remote.status == 'completed' ? TaskStatus.done : TaskStatus.open,
           dueDate: remote.dueDateTime,
           createdAt: remote.createdDateTime,
           updatedAt: remote.lastModifiedDateTime,
@@ -165,12 +217,13 @@ class TodoSyncService extends ChangeNotifier {
       );
       if (imported?.id == null) continue;
 
-      await _updateTodoTask(
+      final updateResult = await _updateTodoTask(
         tokenResult.value!,
         listResult.value!,
         remote.id,
         imported!,
       );
+      if (updateResult.isFailure) return updateResult;
       remoteByShareDocId[imported.id!] = remote;
     }
 
@@ -179,13 +232,17 @@ class TodoSyncService extends ChangeNotifier {
 
       final remote = remoteByShareDocId[task.id!];
       if (remote == null) {
-        await _createTodoTask(tokenResult.value!, listResult.value!, task);
+        final createResult = await _createTodoTask(
+          tokenResult.value!,
+          listResult.value!,
+          task,
+        );
+        if (createResult.isFailure) return createResult;
         continue;
       }
 
-      final remoteStatus = remote.status == 'completed'
-          ? TaskStatus.done
-          : TaskStatus.open;
+      final remoteStatus =
+          remote.status == 'completed' ? TaskStatus.done : TaskStatus.open;
 
       if (remoteStatus != task.status &&
           remote.lastModifiedDateTime.isAfter(task.updatedAt)) {
@@ -201,12 +258,13 @@ class TodoSyncService extends ChangeNotifier {
       if (remoteStatus != task.status ||
           remote.title != _shortTitle(task.title) ||
           _remoteDueDateChanged(remote, task)) {
-        await _updateTodoTask(
+        final updateResult = await _updateTodoTask(
           tokenResult.value!,
           listResult.value!,
           remote.id,
           task,
         );
+        if (updateResult.isFailure) return updateResult;
       }
     }
 
@@ -302,17 +360,26 @@ class TodoSyncService extends ChangeNotifier {
     }
   }
 
-  Future<void> _createTodoTask(String token, String listId, Task task) async {
+  Future<Result<void>> _createTodoTask(
+    String token,
+    String listId,
+    Task task,
+  ) async {
     try {
       await _dio.post(
         '/me/todo/lists/$listId/tasks',
         data: _taskPayload(task),
         options: Options(headers: _headers(token)),
       );
-    } catch (_) {}
+      return const Result.ok(null);
+    } on DioException catch (e) {
+      return Result.fail(_mapGraphError(e));
+    } catch (e) {
+      return Result.fail(Failure.unknown(e.toString()));
+    }
   }
 
-  Future<void> _updateTodoTask(
+  Future<Result<void>> _updateTodoTask(
     String token,
     String listId,
     String remoteTaskId,
@@ -324,7 +391,12 @@ class TodoSyncService extends ChangeNotifier {
         data: _taskPayload(task),
         options: Options(headers: _headers(token)),
       );
-    } catch (_) {}
+      return const Result.ok(null);
+    } on DioException catch (e) {
+      return Result.fail(_mapGraphError(e));
+    } catch (e) {
+      return Result.fail(Failure.unknown(e.toString()));
+    }
   }
 
   Map<String, String> _headers(String token) => {
@@ -380,7 +452,22 @@ class TodoSyncService extends ChangeNotifier {
     if (status == 401 || status == 403) {
       return Failure.auth('Microsoft To Do access denied');
     }
+    if (e.type == DioExceptionType.connectionError ||
+        e.type == DioExceptionType.connectionTimeout ||
+        e.type == DioExceptionType.receiveTimeout) {
+      return Failure.network(
+        'Microsoft To Do is temporarily unreachable. Sync will retry automatically.',
+      );
+    }
+    if (status == 429 || (status != null && status >= 500)) {
+      return Failure.network('Microsoft To Do is temporarily unavailable');
+    }
     return Failure.server(e.message ?? 'Microsoft Graph request failed');
+  }
+
+  bool _isRetryable(Failure failure) {
+    return failure.type == FailureType.network ||
+        failure.type == FailureType.auth;
   }
 }
 
@@ -422,9 +509,8 @@ class _TodoTask {
       id: json['id'] as String,
       title: json['title'] as String? ?? '',
       status: json['status'] as String? ?? 'notStarted',
-      bodyContent: body is Map<String, dynamic>
-          ? body['content'] as String?
-          : null,
+      bodyContent:
+          body is Map<String, dynamic> ? body['content'] as String? : null,
       createdDateTime: DateTime.parse(
         json['createdDateTime'] as String? ??
             json['lastModifiedDateTime'] as String,

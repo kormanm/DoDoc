@@ -25,12 +25,9 @@ class LocalTasks extends Table {
   TextColumn get address => text().nullable()();
   RealColumn get geoLat => real().nullable()();
   RealColumn get geoLon => real().nullable()();
-  RealColumn get aiConfidence =>
-      real().withDefault(const Constant(0.0))();
-  BoolColumn get parseFailed =>
-      boolean().withDefault(const Constant(false))();
-  BoolColumn get pendingSync =>
-      boolean().withDefault(const Constant(false))();
+  RealColumn get aiConfidence => real().withDefault(const Constant(0.0))();
+  BoolColumn get parseFailed => boolean().withDefault(const Constant(false))();
+  BoolColumn get pendingSync => boolean().withDefault(const Constant(false))();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -40,7 +37,7 @@ class LocalTasks extends Table {
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
-  AppDatabase.forTesting(QueryExecutor executor) : super(executor);
+  AppDatabase.forTesting(super.e);
 
   @override
   int get schemaVersion => 1;
@@ -61,8 +58,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   Future<List<model.Task>> getPendingSyncTasks() async {
-    final query = select(localTasks)
-      ..where((t) => t.pendingSync.equals(true));
+    final query = select(localTasks)..where((t) => t.pendingSync.equals(true));
     final rows = await query.get();
     return rows.map(_rowToTask).toList();
   }
@@ -93,6 +89,15 @@ class AppDatabase extends _$AppDatabase {
 
   Future<void> deleteTask(String taskId) async {
     await (delete(localTasks)..where((t) => t.id.equals(taskId))).go();
+  }
+
+  Future<void> replaceTaskId(String oldTaskId, model.Task replacement) async {
+    await transaction(() async {
+      await upsertTask(replacement);
+      if (oldTaskId != replacement.id) {
+        await deleteTask(oldTaskId);
+      }
+    });
   }
 
   Future<void> replaceAll(List<model.Task> tasks) async {

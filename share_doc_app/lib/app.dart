@@ -104,6 +104,9 @@ class _LoginScreen extends StatelessWidget {
             FilledButton(
               onPressed: () async {
                 final authService = context.read<AuthService>();
+                final taskRepository = context.read<TaskRepository>();
+                final consentService = context.read<ConsentService>();
+                final todoSync = context.read<TodoSyncService>();
                 final result =
                     await authService.signIn(forceAccountSelection: true);
                 if (!context.mounted) return;
@@ -117,11 +120,10 @@ class _LoginScreen extends StatelessWidget {
                   return;
                 }
 
-                final taskRepository = context.read<TaskRepository>();
-                await context.read<ConsentService>().loadFromProfile();
-                await context
-                    .read<TodoSyncService>()
-                    .ensureConnectedForSession(interactiveIfMissing: true);
+                await consentService.loadFromProfile();
+                await todoSync.ensureConnectedForSession(
+                  interactiveIfMissing: true,
+                );
                 await taskRepository.syncAll();
               },
               child: const Text('Sign in or create account'),
@@ -190,18 +192,18 @@ extension on _ShareDocAppState {
     final existing = _findTaskById(repo.tasks, taskId);
     if (existing == null) {
       await repo.syncAll();
+      if (!mounted) return;
     }
 
     final resolved = _findTaskById(repo.tasks, taskId);
     if (resolved == null) {
       _pendingTaskId = null;
       final currentContext = _navigatorKey.currentContext;
-      final scaffoldMessenger = currentContext == null
-          ? null
-          : ScaffoldMessenger.maybeOf(currentContext);
-      scaffoldMessenger?.showSnackBar(
-        const SnackBar(content: Text('Task not found')),
-      );
+      if (currentContext != null && currentContext.mounted) {
+        ScaffoldMessenger.maybeOf(currentContext)?.showSnackBar(
+          const SnackBar(content: Text('Task not found')),
+        );
+      }
       return;
     }
 
@@ -225,8 +227,16 @@ extension on _ShareDocAppState {
     final authState = context.read<AuthState>();
     final consent = context.read<ConsentService>();
     if (authState.isAuthenticated && consent.consentShown) {
-      context.read<TaskRepository>().syncAll();
+      unawaited(_reconnectAndSync());
     }
+  }
+
+  Future<void> _reconnectAndSync() async {
+    await context.read<TodoSyncService>().ensureConnectedForSession(
+          interactiveIfMissing: false,
+        );
+    if (!mounted) return;
+    await context.read<TaskRepository>().syncAll();
   }
 
   Task? _findTaskById(List<Task> tasks, String taskId) {

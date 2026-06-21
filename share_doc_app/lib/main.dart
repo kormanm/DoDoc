@@ -46,9 +46,11 @@ void main() async {
       TaskRepository(db, tasksApi, notifications, todoSyncService);
   final consentService = ConsentService(usersApi);
 
+  await taskRepository.loadAll();
   if (authState.isAuthenticated) {
     await consentService.loadFromProfile();
-    await todoSyncService.ensureConnectedForSession(interactiveIfMissing: false);
+    await todoSyncService.ensureConnectedForSession(
+        interactiveIfMissing: false);
     await taskRepository.syncAll();
   }
 
